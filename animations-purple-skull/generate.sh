@@ -50,11 +50,14 @@ for i in $(seq 0 179); do
   target_id=$(printf '%03d' "$i")
   ln -s "out-$source_id.png" "$task_tmp/cycle-$target_id.png"
 done
+# Bilinear sampling gives a subpixel whole-emblem float: +/-0.8 px sideways
+# and +/-2.2 px vertically, with one seamless orbit every four seconds.
+float_filter="geq=r='r(X-0.8*sin(2*PI*T/4),Y-2.2*cos(2*PI*T/4))':g='g(X-0.8*sin(2*PI*T/4),Y-2.2*cos(2*PI*T/4))':b='b(X-0.8*sin(2*PI*T/4),Y-2.2*cos(2*PI*T/4))':interpolation=bilinear"
 ffmpeg -hide_banner -loglevel error -y \
   -framerate 15 -i "$task_tmp/cycle-%03d.png" \
   -loop 1 -framerate 60 -i "$task_tmp/out-001.png" \
   -filter_complex_threads 2 \
-  -filter_complex "[0:v]tmix=frames=7:weights='1 2 3 4 3 2 1',minterpolate=fps=60:mi_mode=blend,trim=start_frame=240:end_frame=480,setpts=PTS-STARTPTS[motion];[1:v][motion]blend=all_expr='A*0.55+B*0.45':shortest=1,format=rgb24[final]" \
+  -filter_complex "[0:v]tmix=frames=7:weights='1 2 3 4 3 2 1',minterpolate=fps=60:mi_mode=blend,trim=start_frame=240:end_frame=480,setpts=PTS-STARTPTS[motion];[1:v][motion]blend=all_expr='A*0.55+B*0.45':shortest=1,format=rgb24,${float_filter},format=rgb24[final]" \
   -map '[final]' -frames:v 240 -fps_mode passthrough -threads 2 "$task_tmp/final-%03d.png"
 test "$(find "$task_tmp" -name 'final-*.png' -type f | wc -l)" -eq 240
 ffmpeg -hide_banner -loglevel error -y -framerate 60 \
@@ -71,4 +74,4 @@ ffmpeg -hide_banner -loglevel error -y -framerate 60 \
 magick montage "$task_tmp"/final-*.png -tile 20x12 -geometry 384x512+0+0 \
   -background black +repage purple-skull-sheet.png
 cp "$task_tmp/final-001.png" poster.png
-printf 'Exported lively four-second loop: 240 frames at 60 fps; GIF preview at 20 fps.\n'
+printf 'Exported floating four-second loop: 240 frames at 60 fps; GIF preview at 20 fps.\n'
